@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2021 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_PROTOCOL_ST_HPP
@@ -12,6 +12,7 @@
 #include <string>
 
 #include <srs_protocol_io.hpp>
+#include <srs_kernel_error.hpp>
 
 // Wrap for coroutine.
 typedef void* srs_netfd_t;
@@ -19,8 +20,16 @@ typedef void* srs_thread_t;
 typedef void* srs_cond_t;
 typedef void* srs_mutex_t;
 
-// Initialize st, requires epoll.
+
+#ifdef SRS_SANITIZER
+// Setup the primordial stack for asan detecting.
+void srs_set_primordial_stack(void* stack_top);
+#endif
+
+// Initialize ST, requires epoll for linux.
 extern srs_error_t srs_st_init();
+// Destroy ST, free resources for asan detecting.
+extern void srs_st_destroy(void);
 
 // Close the netfd, and close the underlayer fd.
 // @remark when close, user must ensure io completed.
@@ -41,7 +50,13 @@ extern srs_error_t srs_fd_keepalive(int fd);
 // Get current coroutine/thread.
 extern srs_thread_t srs_thread_self();
 extern void srs_thread_exit(void* retval);
+extern int srs_thread_join(srs_thread_t thread, void **retvalp);
+extern void srs_thread_interrupt(srs_thread_t thread);
 extern void srs_thread_yield();
+
+// For utest to mock the thread create.
+typedef void* (*_ST_THREAD_CREATE_PFN)(void *(*start)(void *arg), void *arg, int joinable, int stack_size);
+extern _ST_THREAD_CREATE_PFN _pfn_st_thread_create;
 
 // For client, to open socket and connect to server.
 // @param tm The timeout in srs_utime_t.
@@ -68,6 +83,7 @@ extern int srs_mutex_unlock(srs_mutex_t mutex);
 
 extern int srs_key_create(int* keyp, void (*destructor)(void*));
 extern int srs_thread_setspecific(int key, void* value);
+extern int srs_thread_setspecific2(srs_thread_t thread, int key, void* value);
 extern void* srs_thread_getspecific(int key);
 
 extern int srs_netfd_fileno(srs_netfd_t stfd);
@@ -121,13 +137,13 @@ private:
     int64_t rbytes;
     int64_t sbytes;
     // The underlayer st fd.
-    srs_netfd_t stfd;
+    srs_netfd_t stfd_;
 public:
     SrsStSocket();
+    SrsStSocket(srs_netfd_t fd);
     virtual ~SrsStSocket();
-public:
-    // Initialize the socket with stfd, user must manage it.
-    virtual srs_error_t initialize(srs_netfd_t fd);
+private:
+    void init(srs_netfd_t fd);
 public:
     virtual void set_recv_timeout(srs_utime_t tm);
     virtual srs_utime_t get_recv_timeout();
@@ -155,7 +171,7 @@ public:
 class SrsTcpClient : public ISrsProtocolReadWriter
 {
 private:
-    srs_netfd_t stfd;
+    srs_netfd_t stfd_;
     SrsStSocket* io;
 private:
     std::string host;
@@ -173,10 +189,6 @@ public:
     // Connect to server over TCP.
     // @remark We will close the exists connection before do connect.
     virtual srs_error_t connect();
-private:
-    // Close the connection to server.
-    // @remark User should never use the client when close it.
-    virtual void close();
 // Interface ISrsProtocolReadWriter
 public:
     virtual void set_recv_timeout(srs_utime_t tm);

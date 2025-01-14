@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2021 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_APP_LOG_HPP
@@ -15,7 +15,7 @@
 #include <srs_app_reload.hpp>
 #include <srs_protocol_log.hpp>
 
-class SrsMutex;
+class SrsThreadMutex;
 
 // For log TAGs.
 #define TAG_MAIN "MAIN"
@@ -32,7 +32,7 @@ class SrsFileLog : public ISrsLog, public ISrsReloadHandler
 {
 private:
     // Defined in SrsLogLevel.
-    SrsLogLevel level;
+    SrsLogLevel level_;
 private:
     char* log_data;
     // Log to file if specified srs_log_file
@@ -43,7 +43,7 @@ private:
     bool utc;
     // TODO: FIXME: use macro define like SRS_MULTI_THREAD_LOG to switch enable log mutex or not.
     // Mutex for multithread log.
-    SrsMutex* mutex_;
+    SrsThreadMutex* mutex_;
 public:
     SrsFileLog();
     virtual ~SrsFileLog();
@@ -51,17 +51,7 @@ public:
 public:
     virtual srs_error_t initialize();
     virtual void reopen();
-    virtual void verbose(const char* tag, SrsContextId context_id, const char* fmt, ...);
-    virtual void info(const char* tag, SrsContextId context_id, const char* fmt, ...);
-    virtual void trace(const char* tag, SrsContextId context_id, const char* fmt, ...);
-    virtual void warn(const char* tag, SrsContextId context_id, const char* fmt, ...);
-    virtual void error(const char* tag, SrsContextId context_id, const char* fmt, ...);
-// Interface ISrsReloadHandler.
-public:
-    virtual srs_error_t on_reload_utc_time();
-    virtual srs_error_t on_reload_log_tank();
-    virtual srs_error_t on_reload_log_level();
-    virtual srs_error_t on_reload_log_file();
+    virtual void log(SrsLogLevel level, const char* tag, const SrsContextId& context_id, const char* fmt, va_list args);
 private:
     virtual void write_log(int& fd, char* str_log, int size, int level);
     virtual void open_log_file();

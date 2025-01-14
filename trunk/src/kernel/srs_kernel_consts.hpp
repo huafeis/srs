@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2021 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #ifndef SRS_KERNEL_CONSTS_HPP
@@ -125,6 +125,8 @@
 // The signal for srs to gracefully quit, do carefully dispose then exit.
 // @see https://github.com/ossrs/srs/issues/1579
 #define SRS_SIGNAL_GRACEFULLY_QUIT SIGQUIT
+// The signal for SRS to abort by assert(false).
+#define SRS_SIGNAL_ASSERT_ABORT SIGABRT
 
 // The application level signals.
 // Persistence the config in memory to config file.

@@ -1,7 +1,7 @@
 //
-// Copyright (c) 2013-2021 The SRS Authors
+// Copyright (c) 2013-2025 The SRS Authors
 //
-// SPDX-License-Identifier: MIT or MulanPSL-2.0
+// SPDX-License-Identifier: MIT
 //
 
 #include <srs_protocol_srt.hpp>
@@ -13,6 +13,7 @@ using namespace std;
 #include <srs_kernel_error.hpp>
 #include <srs_kernel_log.hpp>
 #include <srs_core_autofree.hpp>
+#include <srs_core_deprecated.hpp>
 
 #include <srt/srt.h>
 
@@ -98,7 +99,25 @@ static void srs_srt_log_handler(void* opaque, int level, const char* file, int l
     }
 }
 
-srs_error_t srs_srt_log_initialie()
+static string srt_sockstatus_to_str(const SRT_SOCKSTATUS& status)
+{
+    switch (status) {
+        case SRTS_INIT: return "SRTS_INIT";
+        case SRTS_OPENED: return "SRTS_OPENED";
+        case SRTS_LISTENING: return "SRTS_LISTENING";
+        case SRTS_CONNECTING: return "SRT_CONNECTING";
+        case SRTS_CONNECTED: return "SRTS_CONNECTED";
+        case SRTS_BROKEN: return "SRTS_BROKEN";
+        case SRTS_CLOSING: return "SRTS_CLOSING";
+        case SRTS_CLOSED: return "SRTS_CLOSED";
+        case SRTS_NONEXIST: return "SRTS_NONEXIST";
+        default: return "unknown";
+    }
+
+    return "unknown";
+}
+
+srs_error_t srs_srt_log_initialize()
 {
     srs_error_t err = srs_success;
 
@@ -170,7 +189,8 @@ srs_error_t srs_srt_listen(srs_srt_t srt_fd, std::string ip, int port)
     srs_error_t err = srs_success;
 
     char sport[8];
-    snprintf(sport, sizeof(sport), "%d", port);
+    int r0 = snprintf(sport, sizeof(sport), "%d", port);
+    srs_assert(r0 > 0 && r0 < (int)sizeof(sport));
 
     addrinfo hints;
     memset(&hints, 0, sizeof(hints));
@@ -202,7 +222,7 @@ srs_error_t srs_srt_nonblock(srs_srt_t srt_fd)
     return srs_success;
 }
 
-srs_error_t srs_srt_set_maxbw(srs_srt_t srt_fd, int maxbw)
+srs_error_t srs_srt_set_maxbw(srs_srt_t srt_fd, int64_t maxbw)
 {
     SET_SRT_OPT(srt_fd, SRTO_MAXBW, maxbw);
     return srs_success;
@@ -280,7 +300,19 @@ srs_error_t srs_srt_set_streamid(srs_srt_t srt_fd, const std::string& streamid)
     return srs_success;
 }
 
-srs_error_t srs_srt_get_maxbw(srs_srt_t srt_fd, int& maxbw)
+srs_error_t srs_srt_set_passphrase(srs_srt_t srt_fd, const std::string& passphrase)
+{
+    SET_SRT_OPT_STR(srt_fd, SRTO_PASSPHRASE, passphrase.data(), passphrase.size());
+    return srs_success;
+}
+
+srs_error_t srs_srt_set_pbkeylen(srs_srt_t srt_fd, int pbkeylen)
+{
+    SET_SRT_OPT(srt_fd, SRTO_PBKEYLEN, pbkeylen);
+    return srs_success;
+}
+
+srs_error_t srs_srt_get_maxbw(srs_srt_t srt_fd, int64_t& maxbw)
 {
     GET_SRT_OPT(srt_fd, SRTO_MAXBW, maxbw);
     return srs_success;
@@ -962,7 +994,8 @@ srs_error_t SrsSrtSocket::check_error()
     srs_error_t err = srs_success;
 
     if (has_error_) {
-        return srs_error_new(ERROR_SRT_IO, "has error");
+        SRT_SOCKSTATUS status = srt_getsockstate(srt_fd_);
+        return srs_error_new(ERROR_SRT_IO, "error occured, socket status=%s", srt_sockstatus_to_str(status).c_str());
     }
 
     return err;
